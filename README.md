@@ -8,7 +8,7 @@ Interactive dashboard analyzing 34 years of Canada's PM2.5 emissions (1990–202
 
 <div align="center">
 
-[![View Dashboard](https://img.shields.io/badge/📊_View_Live_Dashboard-c24b3f?style=for-the-badge&logoColor=white)](https://nooranabumazen.github.io/canada-air-quality-pm25/)
+[![View Dashboard](https://img.shields.io/badge/📊_Click Here to View_Live_Dashboard-c24b3f?style=for-the-badge&logoColor=white)](https://nooranabumazen.github.io/canada-air-quality-pm25/)
 
 </div>
 
