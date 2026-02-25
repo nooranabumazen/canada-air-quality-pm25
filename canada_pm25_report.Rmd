@@ -1,0 +1,512 @@
+---
+title: "Clearing Canada's Air: Three Decades of PM2.5"
+output:
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: scroll
+    theme:
+      version: 4
+      bg: "#faf8f5"
+      fg: "#1a150d"
+      primary: "#c24b3f"
+      base_font:
+        google: Manrope
+      heading_font:
+        google: Playfair Display
+    self_contained: true
+    navbar:
+      - { title: "APEI 2025 · 1990–2023", align: right }
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(plotly)
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(htmltools)
+
+# ============================================================
+# READ DATA FROM XLSX
+# ============================================================
+data_path <- "data/canada_pm25_data.xlsx"
+
+national_df    <- read_excel(data_path, sheet = "national_emissions")
+elec_df        <- read_excel(data_path, sheet = "electric_utilities")
+wf_df          <- read_excel(data_path, sheet = "wildfire_estimates")
+ab_df          <- read_excel(data_path, sheet = "area_burned")
+cities_df      <- read_excel(data_path, sheet = "city_pm25")
+fire_impact_df <- read_excel(data_path, sheet = "fire_impact")
+
+# Unpack national columns for easy plotting
+years    <- national_df$year
+roads    <- national_df$roads
+crops    <- national_df$crops
+constr   <- national_df$constr
+other    <- national_df$other
+firewood <- national_df$firewood
+total    <- national_df$total
+
+# Rename wildfire columns to match chart code
+wf_df <- wf_df %>% rename(wildfire = wildfire_pm25, anthropogenic = anthropogenic_pm25)
+
+# Rename area burned column
+ab_df <- ab_df %>% rename(burned = burned_mha)
+
+# Rename fire impact columns
+fire_impact_df <- fire_impact_df %>% rename(nat_avg_pm = nat_avg_pm25, area_burned = area_burned_mha)
+
+# COVID subset (2018-2023)
+covid_idx <- which(years %in% 2018:2023)
+covid_df <- data.frame(
+  year = factor(years[covid_idx]),
+  roads = roads[covid_idx], crops = crops[covid_idx], constr = constr[covid_idx],
+  other = other[covid_idx], firewood = firewood[covid_idx]
+)
+
+city_colors <- c(
+  Vancouver = "#2D7A4F",  # emerald
+  Calgary   = "#DC5B2B",  # burnt orange
+  Edmonton  = "#1E88E5",  # bright blue
+  Winnipeg  = "#9C27B0",  # violet
+  Toronto   = "#E91E63",  # hot pink
+  Ottawa    = "#F4A100",  # golden
+  Montreal  = "#795548",  # warm brown
+  Halifax   = "#5C6BC0"   # indigo
+)
+
+city_summary <- cities_df %>% group_by(city) %>%
+  summarise(baseline = round(mean(pm25[year <= 2019]), 1), y2019 = pm25[year == 2019],
+            y2023 = pm25[year == 2023], pct_change = round((y2023 - round(mean(pm25[year <= 2019]), 1)) / round(mean(pm25[year <= 2019]), 1) * 100), .groups = "drop") %>%
+  mutate(city = factor(city, levels = names(city_colors)))
+
+# ============================================================
+# COLORS & HELPERS
+# ============================================================
+C <- list(
+  maple = "#c24b3f", blue = "#3b6fa0", teal = "#2a8a7a", green = "#2d7a4f",
+  crops = "#b87820", constr = "#6b5b95", other = "#8a7e6f", roads = "#c24b3f",
+  bg = "#faf8f5", card = "#ffffff", border = "#ede8e2", text = "#1a150d", muted = "#8a7e6f"
+)
+
+rgba <- function(hex, alpha = 1) {
+  rgb_vals <- col2rgb(hex)
+  sprintf("rgba(%d,%d,%d,%.2f)", rgb_vals[1], rgb_vals[2], rgb_vals[3], alpha)
+}
+
+kpi_row <- function(...) {
+  items <- list(...)
+  cards <- lapply(items, function(item) {
+    bg <- if (!is.null(item$bg)) item$bg else C$maple
+    sprintf(
+      '<div style="flex:1;min-width:140px;text-align:center;padding:18px 12px 20px;background:%s;border-radius:10px;color:white;">
+         <div style="font-size:1.4rem;font-weight:700;font-family:Playfair Display,serif;line-height:1.2;">%s</div>
+         <div style="font-size:0.65rem;opacity:0.85;margin-top:6px;text-transform:uppercase;letter-spacing:0.04em;line-height:1.3;">%s</div>
+       </div>', bg, item$value, item$label)
+  })
+  HTML(sprintf('<div style="display:flex;gap:12px;flex-wrap:wrap;margin:0.75rem 1rem 0.5rem;">%s</div>',
+               paste(cards, collapse = "\n")))
+}
+
+
+pl <- function(p, title = "", ylab = "", xlab = "") {
+  p %>% layout(
+    title = list(text = title, font = list(size = 15, family = "Playfair Display"), x = 0),
+    paper_bgcolor = C$bg, plot_bgcolor = C$card,
+    font = list(family = "Manrope, sans-serif", color = C$text, size = 12),
+    margin = list(l = 60, r = 40, t = 55, b = 50), hovermode = "x unified",
+    legend = list(orientation = "h", yanchor = "top", y = -0.15, xanchor = "center", x = 0.5,
+                  bgcolor = "rgba(0,0,0,0)", font = list(size = 10)),
+    xaxis = list(showgrid = FALSE, linecolor = C$border, title = xlab),
+    yaxis = list(gridcolor = C$border, linecolor = C$border, title = ylab)
+  ) %>% config(displayModeBar = TRUE, modeBarButtonsToRemove = c("lasso2d","select2d"), displaylogo = FALSE)
+}
+```
+
+```{css}
+.narrative { font-size:0.95rem; color:#8a7e6f; line-height:1.7; max-width:900px; padding:0 1rem; }
+.narrative strong { color:#1a150d; }
+.insight-box { background:#f5ece4; border-left:3px solid #c24b3f; padding:1rem 1.25rem; border-radius:0 8px 8px 0; margin:0.5rem 1rem; font-size:0.9rem; }
+.chart-wrapper { border:1px solid #ede8e2; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,.04); }
+h1, h2, h3 { font-family:'Playfair Display', serif !important; }
+.level3 > h3 { color:#c24b3f; font-size:0.75rem; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; font-family:'Manrope', sans-serif !important; }
+.no-padding { padding: 0 !important; overflow: visible !important; }
+.section-level3 { overflow: visible !important; }
+.chart-wrapper .chart-stage { overflow: visible !important; }
+```
+
+# Background {data-icon="fa-info-circle"}
+
+## Row {data-height=200}
+
+### {.no-padding}
+
+<div class="narrative" style="padding-top:1.5rem;">
+<strong>Why This Report Matters.</strong> Air quality policy in Canada is at a crossroads. Decades of regulation have successfully cut industrial and combustion-related PM2.5, but those gains are increasingly erased by wildfires and urbanization-driven dust. Decision-makers in public health, urban planning, and climate adaptation need to understand <em>which sources are improving, which are worsening, and where the next crisis will come from</em>. This report translates 34 years of federal emissions data into actionable patterns: where to double down on regulation, where to invest in monitoring, and why wildfire smoke policy is now a public health emergency.
+</div>
+
+## Row {data-height=230}
+
+### {.no-padding}
+
+<div class="narrative" style="padding-top:1.5rem;">
+<strong>Chapter 1 · Background.</strong> This report explores three decades of Canada's fight against fine particulate matter - the most dangerous common air pollutant. Using national inventory data, provincial reports, and city-level monitoring, it asks three questions:
+</div>
+```{r results='asis'}
+kpi_row(
+  list(value = "Are emissions falling?", label = "The 34-year national trend", bg = C$blue),
+  list(value = "What\u2019s driving it?", label = "Winners, losers & COVID", bg = C$crops),
+  list(value = "What about wildfires?", label = "The elephant in the room", bg = C$maple)
+)
+```
+
+## Row {data-height=100}
+
+### {.no-padding}
+
+<div class="narrative">
+Fine particulate matter (PM2.5) refers to particles <strong>smaller than 2.5 micrometres</strong>, about 30 times smaller than a human hair. Unlike larger particles that your nose and throat filter out, PM2.5 bypasses your lungs and enters your bloodstream, causing damage far beyond the respiratory system. It is the <strong>single largest environmental health risk</strong> in Canada.
+</div>
+
+## Row {data-height=120}
+
+### {.no-padding}
+```{r results='asis'}
+kpi_row(
+  list(value = "$114B", label = "Annual cost in deaths, hospitals & lost productivity", bg = C$maple),
+  list(value = "15,300", label = "Canadians die early each year from air pollution", bg = C$maple),
+  list(value = "8.8 \u00b5g/m\u00b3", label = "Canada\u2019s legal annual limit (CAAQS 2020)", bg = C$blue),
+  list(value = "5 \u00b5g/m\u00b3", label = "WHO safe limit \u2014 no Canadian city meets it", bg = C$blue)
+)
+```
+
+## Row {data-height=90}
+
+### {.no-padding}
+
+<div class="narrative">
+The data comes from the <strong>Air Pollutant Emissions Inventory (APEI) 2025 Report</strong> by Environment and Climate Change Canada, which tracks anthropogenic emissions across five PM2.5 source categories. It does <em>not</em> include wildfire emissions in its main totals, a critical distinction explored later.
+</div>
+
+# National Picture {data-icon="fa-chart-area"}
+
+## Row {data-height=220}
+
+### {.no-padding}
+
+<div class="narrative" style="padding-top:1rem;">
+<strong>Chapter 2 · The National Picture.</strong> Total anthropogenic PM2.5 fell from roughly <strong>1,609 kt in 1990 to 1,370 kt in 2023</strong> (a 15% decline). But this hides a tug-of-war: industrial and combustion sources have plummeted, while dust from roads and construction has climbed steadily.
+</div>
+
+```{r results='asis'}
+kpi_row(
+  list(value = "-15%", label = "Total Change Since 1990", bg = C$green),
+  list(value = "-50%", label = "Firewood Burning", bg = C$green),
+  list(value = "+82%", label = "Road Dust", bg = C$maple),
+  list(value = "+80%", label = "Construction Dust", bg = C$maple)
+)
+```
+
+## Row {data-height=460}
+
+### National PM2.5 by Source (1990-2023) {data-width=580}
+
+````{r}
+sources <- list(
+  list(y = roads, name = "Roads", color = C$roads),
+  list(y = crops, name = "Crops", color = C$crops),
+  list(y = constr, name = "Construction", color = C$constr),
+  list(y = other, name = "Other", color = C$other),
+  list(y = firewood, name = "Firewood", color = C$green)
+)
+
+p <- plot_ly()
+for (s in sources) {
+  p <- p %>% add_trace(x=~years, y=s$y, name=s$name, type="scatter", mode="lines",
+    stackgroup="one", line=list(width=.5, color=s$color), fillcolor=rgba(s$color, .2))
+}
+p %>%
+  add_trace(x=~years, y=~total, name="Total", type="scatter", mode="lines",
+    line=list(width=2.5, color=C$text, dash="dot")) %>%
+  pl(ylab="PM2.5 (kilotonnes)")
+````
+
+### Winners and Losers {data-width=580}
+
+```{r}
+pct <- function(v) paste0(ifelse((v[length(v)]-v[1])/v[1]*100>0,"+",""), round((v[length(v)]-v[1])/v[1]*100,1),"%")
+
+p <- plot_ly()
+for (s in sources) {
+  p <- p %>% add_trace(x=~years, y=s$y, name=paste(s$name, pct(s$y)),
+    type="scatter", mode="lines", line=list(width=2.5, color=s$color))
+}
+p %>% pl(ylab="PM2.5 (kt)")
+```
+
+## Row {data-height=100}
+
+### {.no-padding}
+
+<div class="insight-box"><strong>Key insight:</strong> If you strip out road and construction dust, the remaining PM2.5 sources have actually fallen 41% since 1990. Canada's success in cutting industrial, firewood, and crop emissions is being partially masked by urbanization-driven dust increases.</div>
+
+# COVID & Coal {data-icon="fa-industry"}
+
+## Row {data-height=100}
+
+### {.no-padding}
+
+<div class="narrative" style="padding-top:1rem;"><strong>Chapter 3 · The COVID Dip.</strong> The pandemic gave Canada an unintended natural experiment: road dust dropped 15% as traffic fell, construction slowed, and total emissions hit their lowest in 34 years. By 2023 every category had rebounded or exceeded pre-pandemic levels.</div>
+
+## Row {data-height=440}
+
+### COVID Effect: 2018-2023 {data-width=500}
+
+```{r}
+covid_long <- covid_df %>% pivot_longer(-year,names_to="source",values_to="kt") %>%
+  mutate(source=factor(source,levels=c("roads","crops","constr","other","firewood"),labels=c("Roads","Crops","Construction","Other","Firewood")))
+src_colors <- c(Roads=C$roads,Crops=C$crops,Construction=C$constr,Other=C$other,Firewood=C$green)
+plot_ly(covid_long,x=~year,y=~kt,color=~source,colors=src_colors,type="bar",
+        hovertemplate="%{y} kt<extra>%{data.name}</extra>") %>%
+  layout(barmode="stack") %>% pl(ylab="PM2.5 (kt)")
+```
+
+### Ontario Coal Phase-Out {data-width=500}
+
+```{r}
+plot_ly(elec_df,x=~year,y=~pm25,type="scatter",mode="lines+markers",
+        line=list(width=3,color=C$maple),marker=list(size=8,color=C$maple,line=list(color="white",width=2)),
+        fill="tozeroy",fillcolor=rgba(C$maple,.08),hovertemplate="%{y} kt<extra></extra>",name="Electric Utilities") %>%
+  add_annotations(x=2014,y=3.2,text="Coal phase-out\ncomplete",showarrow=TRUE,arrowhead=2,ax=-60,ay=-40,font=list(size=10)) %>%
+  pl(ylab="PM2.5 (kt)") %>%
+  layout(shapes=list(list(type="rect",x0=2012,x1=2015,y0=0,y1=50,fillcolor=rgba(C$green,.08),line=list(width=0))))
+```
+
+## Row {data-height=100}
+
+### {.no-padding}
+
+<div class="insight-box"><strong>Key insight:</strong> Ontario's coal phase-out (completed 2014) drove national electric utility PM2.5 from 49 kt to 1.8 kt — a 96% reduction. COVID showed reducing activity directly cuts PM2.5, but the full rebound by 2023 proves structural changes are needed.</div>
+
+# The Elephant in the Room {data-icon="fa-fire"}
+
+## Row {data-height=220}
+
+### {.no-padding}
+
+<div class="narrative" style="padding-top:1rem;"><strong>Chapter 4 · Wildfires Dwarf Everything Canada Regulates.</strong> The APEI tracks human-caused emissions, but wildfires (excluded from its main totals) can dwarf anthropogenic sources in a single season. Using emission factors from ECCC and UNDRR research (~713 kt PM2.5 per million hectares burned), the 2023 wildfire season produced roughly <strong>10,700 kt of PM2.5</strong> — nearly <strong>8 times</strong> Canada's entire annual anthropogenic total.</div>
+
+```{r results='asis'}
+kpi_row(
+  list(value="~10,700 kt", label="Wildfire PM2.5 (2023 est.)", bg=C$maple),
+  list(value="1,370 kt", label="All Human Sources (2023)", bg=C$blue),
+  list(value="7.8\u00d7", label="Wildfire / Human Ratio", bg=C$maple),
+  list(value="15M ha", label="Area Burned 2023", bg=C$maple)
+)
+```
+
+## Row {data-height=440}
+
+### Wildfire vs. Human-Caused PM2.5 {data-width=550}
+
+```{r}
+plot_ly(wf_df) %>%
+  add_trace(x=~year,y=~wildfire,name="Wildfire PM2.5 (est.)",type="bar",
+            marker=list(color=rgba(C$maple,.7),line=list(color=C$maple,width=1)),
+            hovertemplate="%{y:,} kt<extra>Wildfire</extra>") %>%
+  add_trace(x=~year,y=~anthropogenic,name="All Anthropogenic (APEI)",type="bar",
+            marker=list(color=rgba(C$blue,.6),line=list(color=C$blue,width=1)),
+            hovertemplate="%{y:,} kt<extra>Anthropogenic</extra>") %>%
+  layout(barmode="group") %>% pl(ylab="PM2.5 (kilotonnes)")
+```
+
+### Area Burned (1990-2023) {data-width=450}
+
+```{r}
+ab_colors <- ifelse(ab_df$burned>=10,C$maple,ifelse(ab_df$burned>=4,C$crops,C$other))
+plot_ly(ab_df,x=~year,y=~burned,type="bar",
+        marker=list(color=rgba(ab_colors,.8),line=list(color=ab_colors,width=1)),
+        hovertemplate="%{y:.1f}M hectares<extra></extra>",showlegend=FALSE) %>%
+  pl(ylab="Million hectares") %>%
+  add_annotations(x=2023,y=15,text="15M ha\nunprecedented",showarrow=TRUE,arrowhead=2,ax=-50,ay=-25,font=list(size=11,color=C$maple))
+```
+
+## Row {data-height=100}
+
+### {.no-padding}
+
+<div class="insight-box"><strong>Key insight:</strong> Canada's 34 years of emission reductions pale next to a single bad wildfire season. The 2023 fires released roughly as much PM2.5 as 8 years of all Canadian industrial, transportation, heating, and agricultural activity combined.</div>
+
+# Across Canada's Cities {data-icon="fa-city"}
+
+## Row {data-height=220}
+
+### {.no-padding}
+
+<div class="narrative" style="padding-top:1rem;"><strong>Chapter 5 · Same Country, Very Different Air.</strong> National averages hide enormous variation between cities. In a normal year, most Canadian cities sit below the CAAQS standard of 8.8 µg/m³. But 2023 was not a normal year. Edmonton hit <strong>16.6 µg/m³</strong> — nearly double the limit. The 2023 IQAir World Air Quality Report found <strong>Canada was the most polluted country in North America</strong> for the first time.</div>
+
+```{r results='asis'}
+kpi_row(
+  list(value="16.6 \u00b5g/m\u00b3", label="Edmonton 2023", bg=C$maple),
+  list(value="5.8 \u00b5g/m\u00b3", label="Halifax 2019", bg=C$blue),
+  list(value="8.8 \u00b5g/m\u00b3", label="CAAQS Standard", bg=C$crops),
+  list(value="5.0 \u00b5g/m\u00b3", label="WHO Guideline", bg=C$maple)
+)
+```
+
+## Row {data-height=500}
+
+### PM2.5 Across Major Canadian Cities (2014-2023)
+
+```{r}
+p <- plot_ly()
+for (cn in names(city_colors)) {
+  cd <- cities_df %>% filter(city==cn)
+  p <- p %>% add_trace(x=cd$year, y=cd$pm25, name=cn, type="scatter", mode="lines+markers",
+    line=list(width=2.5, color=city_colors[[cn]]),
+    marker=list(size=5, color=city_colors[[cn]], line=list(color="white", width=1)),
+    hovertemplate=paste0("%{y} \u00b5g/m\u00b3<extra>", cn, "</extra>"))
+}
+p %>% pl(ylab="PM2.5 (\u00b5g/m\u00b3)") %>% layout(
+  yaxis=list(range=c(3,18), gridcolor=C$border, linecolor=C$border),
+  shapes=list(
+    list(type="line", x0=2014, x1=2023, y0=8.8, y1=8.8, line=list(color=rgba(C$maple,.5), width=1.5, dash="dash")),
+    list(type="line", x0=2014, x1=2023, y0=5.0, y1=5.0, line=list(color=rgba(C$green,.5), width=1.5, dash="dot"))),
+  annotations=list(
+    list(x=2023.3, y=8.8, text="CAAQS 8.8", showarrow=FALSE, font=list(size=9, color=C$maple)),
+    list(x=2023.3, y=5.0, text="WHO 5.0", showarrow=FALSE, font=list(size=9, color=C$green))),
+  updatemenus=list(list(type="buttons", direction="right", x=0.5, xanchor="center", y=1.15, yanchor="top",
+    bgcolor="#f5ece4", bordercolor=C$border, font=list(size=11), active=0,
+    buttons=list(
+      list(label="All Cities", method="restyle", args=list("visible", list(TRUE,TRUE,TRUE,TRUE,TRUE,TRUE,TRUE,TRUE))),
+      list(label="Western", method="restyle", args=list("visible", list(TRUE,TRUE,TRUE,TRUE,FALSE,FALSE,FALSE,FALSE))),
+      list(label="Ontario & Quebec", method="restyle", args=list("visible", list(FALSE,FALSE,FALSE,FALSE,TRUE,TRUE,TRUE,FALSE))),
+      list(label="Atlantic", method="restyle", args=list("visible", list(FALSE,FALSE,FALSE,FALSE,FALSE,FALSE,FALSE,TRUE)))
+    ))))
+```
+
+## Row {data-height=420}
+
+### Wildfire Effect: Baseline vs. 2023 {data-width=500}
+
+```{r}
+plot_ly(city_summary) %>%
+  add_trace(x=~city,y=~baseline,name="Baseline (2014-2019 avg)",type="bar",
+    marker=list(color=rgba(city_colors[as.character(city_summary$city)],.4),
+                line=list(color=city_colors[as.character(city_summary$city)],width=1.5)),
+    hovertemplate="%{y} \u00b5g/m\u00b3<extra>Baseline</extra>") %>%
+  add_trace(x=~city,y=~y2023,name="2023 (Wildfire Year)",type="bar",
+    text=~paste0("+",pct_change,"%"),textposition="outside",textfont=list(size=10,color=C$maple),
+    marker=list(color=rgba(city_colors[as.character(city_summary$city)],.8),
+                line=list(color=city_colors[as.character(city_summary$city)],width=1.5)),
+    hovertemplate="%{y} \u00b5g/m\u00b3<extra>2023</extra>") %>%
+  layout(barmode="group") %>% pl(ylab="PM2.5 (\u00b5g/m\u00b3)") %>%
+  layout(shapes=list(list(type="line",x0=-.5,x1=7.5,y0=8.8,y1=8.8,line=list(color=rgba(C$maple,.4),width=1.5,dash="dash"))))
+```
+
+### 2019 (Typical) vs. 2023 (Wildfire) {data-width=500}
+
+```{r}
+plot_ly(city_summary) %>%
+  add_trace(y=~city,x=~y2019,name="2019 (Typical)",type="bar",orientation="h",
+    marker=list(color=rgba(C$blue,.5),line=list(color=C$blue,width=1.5)),
+    hovertemplate="%{x} \u00b5g/m\u00b3<extra>2019</extra>") %>%
+  add_trace(y=~city,x=~y2023,name="2023 (Wildfire)",type="bar",orientation="h",
+    marker=list(color=rgba(C$maple,.6),line=list(color=C$maple,width=1.5)),
+    hovertemplate="%{x} \u00b5g/m\u00b3<extra>2023</extra>") %>%
+  layout(barmode="group") %>% pl(xlab="PM2.5 (\u00b5g/m\u00b3)") %>%
+  layout(xaxis=list(range=c(0,18)),yaxis=list(showgrid=FALSE),
+    shapes=list(
+      list(type="line",x0=8.8,x1=8.8,y0=-.5,y1=7.5,line=list(color=rgba(C$maple,.4),width=1.5,dash="dash")),
+      list(type="line",x0=5.0,x1=5.0,y0=-.5,y1=7.5,line=list(color=rgba(C$green,.4),width=1.5,dash="dot"))))
+```
+
+## Row {data-height=100}
+
+### {.no-padding}
+
+<div class="insight-box"><strong>Key insight:</strong> In a typical year, most major Canadian cities meet the CAAQS standard, though none meet the WHO guideline. The 2023 wildfire season blew past both for nearly every city. Where you live in Canada increasingly determines how much wildfire smoke you breathe.</div>
+
+# Wildfire Wildcard {data-icon="fa-temperature-high"}
+
+## Row {data-height=220}
+
+### {.no-padding}
+
+<div class="narrative" style="padding-top:1rem;"><strong>Chapter 6 · The Biggest Threat Isn't Industrial.</strong> Canada has steadily cut PM2.5 from regulated sources. But wildfires are increasingly undoing that progress. The 2023 season burned over <strong>14 million hectares</strong>, the most since 1970. National average PM2.5 concentrations in 2023 were <strong>62% higher than 2009</strong>, and peak concentrations <strong>167% higher</strong>.</div>
+
+```{r results='asis'}
+kpi_row(
+  list(value="14M ha", label="Area Burned 2023", bg=C$maple),
+  list(value="+62%", label="Avg PM2.5 vs 2009", bg=C$maple),
+  list(value="+167%", label="Peak PM2.5 vs 2009", bg=C$maple),
+  list(value="9.5 \u00b5g/m\u00b3", label="2023 National Avg", bg=C$maple)
+)
+```
+
+## Row {data-height=460}
+
+### National Avg PM2.5 vs. Area Burned (2009-2023)
+
+```{r}
+plot_ly(fire_impact_df) %>%
+  add_trace(x=~year,y=~area_burned,name="Area Burned (M ha)",type="bar",
+    marker=list(color=ifelse(fire_impact_df$area_burned>10,rgba(C$maple,.7),rgba(C$crops,.5)),
+                line=list(color=ifelse(fire_impact_df$area_burned>10,C$maple,C$crops),width=1)),
+    yaxis="y2",hovertemplate="%{y}M hectares<extra></extra>") %>%
+  add_trace(x=~year,y=~nat_avg_pm,name="National Avg PM2.5 (\u00b5g/m\u00b3)",type="scatter",mode="lines+markers",
+    line=list(width=3,color=C$maple),
+    marker=list(size=7,color=ifelse(fire_impact_df$nat_avg_pm>8,C$maple,"white"),line=list(color=C$maple,width=2)),
+    hovertemplate="%{y} \u00b5g/m\u00b3<extra></extra>") %>%
+  pl(ylab="PM2.5 (\u00b5g/m\u00b3)") %>%
+  layout(
+    yaxis=list(range=c(4,11),title="PM2.5 (\u00b5g/m\u00b3)",titlefont=list(color=C$maple),gridcolor=C$border,linecolor=C$border),
+    yaxis2=list(overlaying="y",side="right",range=c(0,16),title="Area Burned (M ha)",titlefont=list(color=C$crops),gridcolor="rgba(0,0,0,0)",linecolor=C$border),
+    shapes=list(list(type="line",x0=2009,x1=2023,y0=8.8,y1=8.8,line=list(color=rgba(C$maple,.4),width=1.5,dash="dash"))),
+    annotations=list(list(x=2023,y=8.8,text="CAAQS",showarrow=FALSE,yshift=10,font=list(size=9,color=C$maple))))
+```
+
+## Row {data-height=100}
+
+### {.no-padding}
+
+<div class="insight-box"><strong>Key insight:</strong> Canada has made real progress cutting human-caused PM2.5 through regulation. But climate-driven wildfires now pose the greatest acute threat to air quality and they're projected to worsen. A single bad smoke week can expose residents of any Canadian city to more PM2.5 than months of normal local emissions.</div>
+
+# Methodology {data-icon="fa-book"}
+
+## Row {data-height=100}
+
+### {.no-padding}
+
+<div class="narrative" style="padding-top:1rem;">
+All national emissions data comes from the **APEI 2025 Report** (1990–2023) by ECCC. Provincial data from Ontario's Air Quality Report 2023. City-level PM2.5 from NAPS and IQAir. All figures are emissions (tonnes) unless labelled as concentrations (µg/m³).
+</div>
+
+## Row
+
+### Emissions vs. Concentrations
+
+Emissions = how much is released. Concentrations = what people breathe. Weather, geography, and transboundary transport affect the relationship.
+
+### CAAQS Standard
+
+Canada's standard for annual PM2.5 is 8.8 µg/m³. The WHO recommends 5 µg/m³. No major Canadian city meets the WHO guideline.
+
+### Why Data Ends at 2023
+
+The APEI 2025 report (published March 2025) covers through 2023. This ~2 year compilation lag is standard for government inventories worldwide.
+
+### Data Sourcing
+
+National emissions were transcribed from APEI 2025, Chapter 2.1, Table 2-3. Area burned data compiled from the National Forestry Database and CNFDB. City PM2.5 concentrations (2014–2022) compiled from NAPS annual summaries and provincial air quality reports; 2023 values from the IQAir World Air Quality Report. Wildfire PM2.5 estimates derived by multiplying area burned by an emission factor of ~713 kt/Mha (ECCC/UNDRR methodology). National average concentrations from ECCC's CESI air quality indicators. The `prepare_data.R` script documents all sources and can read directly from raw ECCC data files when available.
+
+### Data Limitations
+
+APEI data is national/provincial only. City data uses ambient monitoring mixing local, regional, and transboundary sources. IQAir 2023 values include low-cost sensors.
+
+
+## Row {data-height=40}
+
+### {.no-padding}
+
+<p style="text-align:center;font-size:.8rem;color:#8a7e6f;">Analysis by <strong>Nooran Abu Mazen</strong> · Data: ECCC (APEI 2025), Ontario Ministry of the Environment, NAPS, IQAir · Built with R flexdashboard & Plotly</p>
