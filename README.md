@@ -4,7 +4,6 @@ Interactive dashboard analyzing 34 years of Canada's PM2.5 emissions (1990–202
 
 ![R](https://img.shields.io/badge/R-4.0+-276DC3?logo=r&logoColor=white)
 ![Plotly](https://img.shields.io/badge/Plotly-Interactive-3F4F75)
-![License](https://img.shields.io/badge/License-MIT-green)
 
 <div align="center">
 
