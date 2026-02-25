@@ -6,6 +6,12 @@ Interactive dashboard analyzing 34 years of Canada's PM2.5 emissions (1990–202
 ![Plotly](https://img.shields.io/badge/Plotly-Interactive-3F4F75)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
+<div align="center">
+
+[![View Dashboard](https://img.shields.io/badge/📊_View_Live_Dashboard-c24b3f?style=for-the-badge&logoColor=white)](https://nooranabumazen.github.io/canada-air-quality-pm25/)
+
+</div>
+
 ## Why This Matters
 
 Canada's air quality policy is at a crossroads. Decades of regulation have cut industrial PM2.5, but urbanization-driven dust and climate-fueled wildfires are undoing that progress. This report is designed for public health researchers, environmental policy analysts, and municipal planners who need to understand:
