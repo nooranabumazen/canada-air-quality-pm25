@@ -125,7 +125,7 @@ pl <- function(p, title = "", ylab = "", xlab = "") {
 ```
 
 ```{css}
-.narrative { font-size:0.95rem; color:#8a7e6f; line-height:1.7; max-width:900px; padding:0 1rem; }
+.narrative { font-size:0.95rem; color:#8a7e6f; line-height:1.7; padding:0 1rem; }
 .narrative strong { color:#1a150d; }
 .insight-box { background:#f5ece4; border-left:3px solid #c24b3f; padding:1rem 1.25rem; border-radius:0 8px 8px 0; margin:0.5rem 1rem; font-size:0.9rem; }
 .chart-wrapper { border:1px solid #ede8e2; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,.04); }
@@ -134,11 +134,16 @@ h1, h2, h3 { font-family:'Playfair Display', serif !important; }
 .no-padding { padding: 0 !important; overflow: visible !important; }
 .section-level3 { overflow: visible !important; }
 .chart-wrapper .chart-stage { overflow: visible !important; }
+@media (max-width: 768px) {
+  .insight-box { margin-bottom: 0 !important; }
+  [data-height] { min-height: 0 !important; height: auto !important; }
+  .chart-shim { overflow: visible !important; min-height: 0 !important; }
+}
 ```
 
 # Background {data-icon="fa-info-circle"}
 
-## Row {data-height=200}
+## Row {data-height=150}
 
 ### {.no-padding}
 
@@ -146,7 +151,7 @@ h1, h2, h3 { font-family:'Playfair Display', serif !important; }
 <strong>Why This Report Matters.</strong> Air quality policy in Canada is at a crossroads. Decades of regulation have successfully cut industrial and combustion-related PM2.5, but those gains are increasingly erased by wildfires and urbanization-driven dust. Decision-makers in public health, urban planning, and climate adaptation need to understand <em>which sources are improving, which are worsening, and where the next crisis will come from</em>. This report translates 34 years of federal emissions data into actionable patterns: where to double down on regulation, where to invest in monitoring, and why wildfire smoke policy is now a public health emergency.
 </div>
 
-## Row {data-height=230}
+## Row {data-height=200}
 
 ### {.no-padding}
 
@@ -161,7 +166,7 @@ kpi_row(
 )
 ```
 
-## Row {data-height=100}
+## Row {data-height=60}
 
 ### {.no-padding}
 
@@ -181,7 +186,7 @@ kpi_row(
 )
 ```
 
-## Row {data-height=90}
+## Row {data-height=60}
 
 ### {.no-padding}
 
@@ -191,7 +196,7 @@ The data comes from the <strong>Air Pollutant Emissions Inventory (APEI) 2025 Re
 
 # National Picture {data-icon="fa-chart-area"}
 
-## Row {data-height=220}
+## Row {data-height=180}
 
 ### {.no-padding}
 
@@ -253,7 +258,7 @@ p %>% pl(ylab="PM2.5 (kt)")
 
 # COVID & Coal {data-icon="fa-industry"}
 
-## Row {data-height=100}
+## Row {data-height=80}
 
 ### {.no-padding}
 
@@ -291,7 +296,7 @@ plot_ly(elec_df,x=~year,y=~pm25,type="scatter",mode="lines+markers",
 
 # The Elephant in the Room {data-icon="fa-fire"}
 
-## Row {data-height=220}
+## Row {data-height=200}
 
 ### {.no-padding}
 
@@ -340,7 +345,7 @@ plot_ly(ab_df,x=~year,y=~burned,type="bar",
 
 # Across Canada's Cities {data-icon="fa-city"}
 
-## Row {data-height=220}
+## Row {data-height=200}
 
 ### {.no-padding}
 
@@ -386,7 +391,7 @@ p %>% pl(ylab="PM2.5 (\u00b5g/m\u00b3)") %>% layout(
     ))))
 ```
 
-## Row {data-height=420}
+## Row {data-height=325}
 
 ### Wildfire Effect: Baseline vs. 2023 {data-width=500}
 
@@ -430,7 +435,7 @@ plot_ly(city_summary) %>%
 
 # Wildfire Wildcard {data-icon="fa-temperature-high"}
 
-## Row {data-height=220}
+## Row {data-height=185}
 
 ### {.no-padding}
 
@@ -475,7 +480,7 @@ plot_ly(fire_impact_df) %>%
 
 # Methodology {data-icon="fa-book"}
 
-## Row {data-height=100}
+## Row {data-height=80}
 
 ### {.no-padding}
 
