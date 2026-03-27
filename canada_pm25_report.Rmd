@@ -421,7 +421,8 @@ plot_ly(city_summary) %>%
     marker=list(color=rgba(C$maple,.6),line=list(color=C$maple,width=1.5)),
     hovertemplate="%{x} \u00b5g/m\u00b3<extra>2023</extra>") %>%
   layout(barmode="group") %>% pl(xlab="PM2.5 (\u00b5g/m\u00b3)") %>%
-  layout(xaxis=list(range=c(0,18)),yaxis=list(showgrid=FALSE),
+  layout(legend = list(y = -0.35), margin = list(b = 50)) %>%
+  layout(xaxis=list(range=c(0,18), standoff = 5),yaxis=list(showgrid=FALSE),
     shapes=list(
       list(type="line",x0=8.8,x1=8.8,y0=-.5,y1=7.5,line=list(color=rgba(C$maple,.4),width=1.5,dash="dash")),
       list(type="line",x0=5.0,x1=5.0,y0=-.5,y1=7.5,line=list(color=rgba(C$green,.4),width=1.5,dash="dot"))))
